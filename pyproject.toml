@@ -23,6 +23,9 @@ dependencies = [
   "termcolor>=2.0.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
 [project.scripts]
 galbot-mcap2lerobot = "galbot_mcap2lerobot.galbot_mcap_to_lerobot:cli_main"
 merge-lerobot-v2-1 = "galbot_mcap2lerobot.merge_lerobot_v2_1:main"
@@ -91,3 +94,7 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
