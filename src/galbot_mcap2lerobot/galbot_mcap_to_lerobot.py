@@ -49,6 +49,7 @@ from .joint_constants import (
     JOINT_STRUCTURE,
 )
 from .merge_lerobot_v2_1 import merge_datasets
+from .timestamp_utils import TimestampIndex
 
 # ----------------------------
 # Logging Configuration
@@ -535,8 +536,9 @@ class McapToLeRobotDataset:
         interpolated_states = interpolate_func(head_timestamps)
 
         image_times = {
-            t: [(ts, idx) for idx, (ts, _) in enumerate(frames)]
-            for t, frames in image_buffers.items()
+            topic: TimestampIndex([timestamp for timestamp, _ in frames])
+            for topic, frames in image_buffers.items()
+            if frames
         }
 
         # --- Build frame list ---
@@ -575,10 +577,10 @@ class McapToLeRobotDataset:
             for topic, frames in image_buffers.items():
                 if topic == head_topic:
                     continue
-                frames_with_ts = image_times.get(topic, [])
-                if not frames_with_ts:
+                timestamp_index = image_times.get(topic)
+                if timestamp_index is None:
                     continue
-                _closest_ts, idx = min(frames_with_ts, key=lambda x: abs(x[0] - head_ts))
+                _closest_ts, idx = timestamp_index.nearest(head_ts)
                 if abs(_closest_ts - head_ts) > max_sync_gap_ns:
                     # Closest available frame for this camera is farther from
                     # the primary camera's timestamp than the allowed sync
