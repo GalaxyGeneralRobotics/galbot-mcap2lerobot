@@ -195,6 +195,7 @@ action[last] = observation.state[last]  (repeat last)
 - MCAP files are split across `NUM_WORKERS` processes
 - Each process converts its files to separate sub-datasets
 - All sub-datasets are merged into a single dataset with reindexed episodes
+- If an MCAP conversion or worker fails, the command reports the failure and skips the merge. A merge failure also exits with an error instead of reporting success.
 
 ## Configuration Reference
 

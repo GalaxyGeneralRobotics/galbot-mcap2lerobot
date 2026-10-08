@@ -27,7 +27,6 @@ import logging
 import multiprocessing
 import os
 from pathlib import Path
-from queue import Empty
 import shutil
 from typing import Any
 
@@ -49,6 +48,7 @@ from .joint_constants import (
     JOINT_STRUCTURE,
 )
 from .merge_lerobot_v2_1 import merge_datasets
+from .worker_utils import raise_for_worker_failures, wait_for_workers
 
 # ----------------------------
 # Logging Configuration
@@ -827,6 +827,9 @@ def process_subset(
                     f"[Worker {subset_idx + 1}] Error processing {mcap_path}: {e}",
                     exc_info=True,
                 )
+                if progress_queue is not None:
+                    progress_queue.put(("worker_error", subset_idx, f"{mcap_path}: {e}"))
+                raise
     finally:
         if progress_queue is not None:
             progress_queue.put(("worker_done", subset_idx, None))
@@ -896,26 +899,7 @@ def main(
         )
         for i in range(num_workers)
     ]
-    completed_workers = 0
-    while completed_workers < num_workers:
-        try:
-            event, worker_idx, value = progress_queue.get(timeout=0.2)
-        except Empty:
-            continue
-
-        bar = bars[worker_idx]
-        if event == "set_file":
-            bar.set_description(f"Worker {worker_idx + 1} {value}")
-            bar.refresh()
-        elif event == "set_phase":
-            phase_name, phase_total = value
-            bar.reset(total=int(phase_total))
-            bar.set_description(f"Worker {worker_idx + 1} {phase_name}")
-            bar.refresh()
-        elif event == "advance":
-            bar.update(int(value))
-        elif event == "worker_done":
-            completed_workers += 1
+    worker_errors = wait_for_workers(progress_queue, processes, bars)
 
     for bar in bars:
         bar.close()
@@ -924,6 +908,7 @@ def main(
         p.join()
         status = "OK" if p.exitcode == 0 else f"FAILED (exit code {p.exitcode})"
         print(f"Process {p.name}: {status}")
+    raise_for_worker_failures(worker_errors, processes)
 
     # Merge all sub-datasets into final output
     try:
@@ -940,6 +925,7 @@ def main(
         logger.info("Cleaned up temporary files")
     except Exception as e:
         logger.error(f"Failed to merge datasets: {e}", exc_info=True)
+        raise RuntimeError(f"Failed to merge converted datasets in {output_dir}") from e
 
     logger.info("All processes finished.")
 
